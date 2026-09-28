@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:progress/services/database_service.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -33,17 +32,24 @@ class _TimelineScreenState extends State<TimelineScreen> {
   }
 
   Future<void> _loadInitialData() async {
-    final prefs = await SharedPreferences.getInstance();
-    List<String>? savedCategories = prefs.getStringList('categories');
-
-    if (savedCategories == null || savedCategories.isEmpty) {
-      savedCategories = ['Front', 'Back', 'Side'];
-      await prefs.setStringList('categories', savedCategories);
-    }
+    // Henter kategoriene fra den nye databasen vår
+    final categoriesData = await DatabaseService.instance.getCategories();
+    
+    // Gjør om databaseresultatet til en enkel liste med tekst (navnene)
+    List<String> loadedCategories = categoriesData.map((cat) => cat['name'] as String).toList();
 
     setState(() {
-      _categories = savedCategories!;
-      _selectedCategory = savedCategories.first;
+      _categories = loadedCategories;
+      
+      // Hvis vi har kategorier, velg den første. Hvis databasen er tom, sett til null.
+      if (_categories.isNotEmpty) {
+        // Beholder valgt kategori hvis den fortsatt finnes, ellers velg den første
+        if (!_categories.contains(_selectedCategory)) {
+          _selectedCategory = _categories.first;
+        }
+      } else {
+        _selectedCategory = null;
+      }
     });
 
     await _loadEntries();
