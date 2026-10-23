@@ -1,9 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:progress/models/progress_entry.dart';
 
 class CompareScreen extends StatelessWidget {
-  final Map<String, dynamic> entry1;
-  final Map<String, dynamic> entry2;
+  final ProgressEntry entry1;
+  final ProgressEntry entry2;
 
   const CompareScreen({
     super.key,
@@ -19,9 +20,9 @@ class CompareScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Determine which image is older to show it on the left
-    final date1 = DateTime.parse(entry1['date_taken']);
-    final date2 = DateTime.parse(entry2['date_taken']);
-    
+    final date1 = DateTime.parse(entry1.dateTaken);
+    final date2 = DateTime.parse(entry2.dateTaken);
+
     final olderEntry = date1.isBefore(date2) ? entry1 : entry2;
     final newerEntry = date1.isBefore(date2) ? entry2 : entry1;
 
@@ -42,7 +43,7 @@ class CompareScreen extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: Text(
-                      _formatDate(olderEntry['date_taken']),
+                      _formatDate(olderEntry.dateTaken),
                       style: const TextStyle(
                         color: Colors.grey, 
                         fontWeight: FontWeight.bold,
@@ -51,10 +52,15 @@ class CompareScreen extends StatelessWidget {
                     ),
                   ),
                   Expanded(
-                    child: Image.file(
-                      File(olderEntry['image_path']),
-                      fit: BoxFit.cover,
-                      width: double.infinity,
+                    // Allow zooming and panning of the image using InteractiveViewer
+                    child: InteractiveViewer(
+                      minScale: 1.0, // Minimum zoom level (1x)
+                      maxScale: 5.0, // Maximum zoom level (5x)
+                      child: Image.file(
+                        File(olderEntry.imagePath),
+                        fit: BoxFit.contain, // Shows the entire image without cropping
+                        width: double.infinity,
+                      ),
                     ),
                   ),
                 ],
@@ -71,7 +77,7 @@ class CompareScreen extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: Text(
-                      _formatDate(newerEntry['date_taken']),
+                      _formatDate(newerEntry.dateTaken),
                       style: const TextStyle(
                         color: Colors.greenAccent, // Highlights the newer date
                         fontWeight: FontWeight.bold,
@@ -80,10 +86,14 @@ class CompareScreen extends StatelessWidget {
                     ),
                   ),
                   Expanded(
-                    child: Image.file(
-                      File(newerEntry['image_path']),
-                      fit: BoxFit.cover,
-                      width: double.infinity,
+                    child: InteractiveViewer( 
+                      minScale: 1.0,
+                      maxScale: 5.0,
+                      child: Image.file(
+                        File(newerEntry.imagePath),
+                        fit: BoxFit.contain, // Shows the entire image without cropping
+                        width: double.infinity,
+                      ),
                     ),
                   ),
                 ],

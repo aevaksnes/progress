@@ -1,90 +1,127 @@
 import 'dart:io';
-import 'package:archive/archive_io.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
-import 'package:share_plus/share_plus.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:archive/archive_io.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:progress/services/database_service.dart';
 
 class BackupService {
   static final BackupService instance = BackupService._init();
   BackupService._init();
 
-  Future<String> _getDatabasePath() async {
-    final dbFolder = await getDatabasesPath();
-    return path.join(dbFolder, 'progress_database.db'); // Match the DB name you use in database_helper.dart
-  }
-
   Future<void> exportData() async {
-    final archive = Archive();
-    final dbPath = await _getDatabasePath();
-    final docDir = await getApplicationDocumentsDirectory();
+    try {
 
-    // 1. Add Database to ZIP
-    final dbFile = File(dbPath);
-    if (dbFile.existsSync()) {
-      final dbBytes = await dbFile.readAsBytes();
-      archive.addFile(ArchiveFile('database.db', dbBytes.length, dbBytes));
-    }
+      // Ensure the database is in a consistent state before backing up
+      final db = await DatabaseService.instance.database;
+      await db.rawQuery('PRAGMA wal_checkpoint(FULL);');
+      
+      final docDir = await getApplicationDocumentsDirectory();
+      final zipFilePath = path.join(docDir.path, 'progress_backup.zip');
 
-    // 2. Add all JPG images to ZIP
-    final files = docDir.listSync();
-    for (var file in files) {
-      if (file is File && file.path.endsWith('.jpg')) {
-        final bytes = await file.readAsBytes();
-        final fileName = path.basename(file.path);
-        archive.addFile(ArchiveFile('images/$fileName', bytes.length, bytes));
+      // Starts an encoder to create a ZIP file, to not keep everything in RAM as it is being added
+      final encoder = ZipFileEncoder();
+      encoder.create(zipFilePath);
+
+      // 1. Add the database file to the ZIP
+      final dbDir = await getDatabasesPath();
+      final dbPath = path.join(dbDir, 'progress_database.db');
+      final dbFile = File(dbPath);
+      
+      if (await dbFile.exists()) {
+        encoder.addFile(dbFile, 'progress_database.db');
       }
-    }
 
-    // 3. Encode ZIP
-    final zipData = ZipEncoder().encode(archive);
+      // 2. Add the images to the ZIP
+      final files = docDir.listSync();
+      for (var file in files) {
+        if (file is File && file.path.toLowerCase().endsWith('.jpg')) {
+          encoder.addFile(file, 'images/${path.basename(file.path)}');
+        }
+      }
 
-    // 4. Save locally and Share
-    final tempDir = await getTemporaryDirectory();
-    final zipFile = File(path.join(tempDir.path, 'progress_backup.zip'));
-    await zipFile.writeAsBytes(zipData);
+      // Close the encoder to finalize the ZIP file
+      encoder.close();
 
-    // Opens the native share sheet (Google Drive, Files, Email, etc.)
-    await SharePlus.instance.share(
-        ShareParams(files: [XFile(zipFile.path)], text: 'Progress App Backup'),
+      // 3. Share the file via share_plus
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(zipFilePath)], text: 'Progress App Backup'),
       );
+
+    } catch (e) {
+
+      throw Exception('Failed to create backup: $e');
+    }
   }
 
   Future<bool> importData() async {
     try {
-      // 1. Let user pick the ZIP file
-      final result = await FilePicker.pickFiles(
-        type: FileType.any, // Using 'any' as Android can struggle with 'zip' mime types
+      // 1. Let the user pick a ZIP file
+      final files = await FilePicker.pickFiles(
+        type: FileType.any, 
       );
 
-      if (result.isEmpty) return false;
+      if (files.isNotEmpty && files.first.path != null) {
+        final zipFilePath = files.first.path!;
+        
+        // --- Check the file type ---
+        if (!zipFilePath.toLowerCase().endsWith('.zip')) {
+          throw Exception('Selected file is not a valid .zip backup.');
+        }
+        // --------------------------------------
 
-      final zipPath = result.first.path;
-      if (zipPath == null || !zipPath.endsWith('.zip')) return false;
+        final docDir = await getApplicationDocumentsDirectory();
+        
+        // Unzip the file to a temporary directory
+        final tempExtractDir = Directory(path.join(docDir.path, 'temp_extract'));
+        if (await tempExtractDir.exists()) {
+          await tempExtractDir.delete(recursive: true);
+        }
+        await tempExtractDir.create();
 
-      // 2. Decode ZIP
-      final bytes = await File(zipPath).readAsBytes();
-      final archive = ZipDecoder().decodeBytes(bytes);
+        extractFileToDisk(zipFilePath, tempExtractDir.path);
 
-      final dbPath = await _getDatabasePath();
-      final docDir = await getApplicationDocumentsDirectory();
+        // 2. Move the database file to the app's database directory
+        final extractedDbFile = File(path.join(tempExtractDir.path, 'progress_database.db'));
+        if (await extractedDbFile.exists()) {
+          final dbDir = await getDatabasesPath();
+          final activeDbPath = path.join(dbDir, 'progress_database.db');
+          
+          // A: Close the current database connection to ensure no operations are pending, release the file
+          await DatabaseService.instance.close();
+          
+          // B: Delete SQLite's temporary log files (WAL and SHM) to prevent corruption
+          final walFile = File('$activeDbPath-wal');
+          final shmFile = File('$activeDbPath-shm');
+          if (await walFile.exists()) await walFile.delete();
+          if (await shmFile.exists()) await shmFile.delete();
 
-      // 3. Extract and overwrite files
-      for (final file in archive) {
-        if (file.isFile) {
-          if (file.name == 'database.db') {
-            await File(dbPath).writeAsBytes(file.content as List<int>);
-          } else if (file.name.startsWith('images/')) {
-            final fileName = file.name.split('/').last;
-            final imageFile = File(path.join(docDir.path, fileName));
-            await imageFile.writeAsBytes(file.content as List<int>);
+          // C: Safely copy the extracted database file to the active database path
+          await extractedDbFile.copy(activeDbPath);
+        }
+
+        // 3. Move all images from the 'images' folder to the app's document directory
+        final extractedImagesDir = Directory(path.join(tempExtractDir.path, 'images'));
+        if (await extractedImagesDir.exists()) {
+          final extractedImages = extractedImagesDir.listSync();
+          for (var image in extractedImages) {
+            if (image is File) {
+              final newPath = path.join(docDir.path, path.basename(image.path));
+              await image.copy(newPath);
+            }
           }
         }
+
+        // Clean up the temporary extraction directory
+        await tempExtractDir.delete(recursive: true);
+        
+        return true; // Successful import
       }
-      return true;
     } catch (e) {
-      return false;
+      throw Exception('Failed to restore backup: $e');
     }
+    return false; // User cancelled or something failed
   }
 }

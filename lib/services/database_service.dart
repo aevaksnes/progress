@@ -1,5 +1,8 @@
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:progress/models/category.dart';
+import 'package:progress/models/progress_entry.dart';
 import 'dart:io';
 
 class DatabaseService {
@@ -10,7 +13,6 @@ class DatabaseService {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    // Nytt, rent navn på databasen!
     _database = await _initDB('progress_database.db');
     return _database!;
   }
@@ -21,19 +23,19 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 1, // Vi starter med blanke ark på versjon 1
-      onConfigure: _onConfigure, // Må til for å slå på "Foreign keys"
+      version: 1, 
+      onConfigure: _onConfigure, // Necessary for "Foreign keys"
       onCreate: _createDB,
     );
   }
 
-  // Slår på SQLite sin evne til å la tabeller snakke sammen
+  // Turn on foreign key support for SQLite
   Future _onConfigure(Database db) async {
     await db.execute('PRAGMA foreign_keys = ON');
   }
 
   Future _createDB(Database db, int version) async {
-    // 1. Kategoritabellen (Må opprettes først siden bilder er avhengig av den)
+    // 1. Categories table (Must be created first since images depend on it)
     await db.execute('''
       CREATE TABLE categories (
         name TEXT PRIMARY KEY,
@@ -44,7 +46,7 @@ class DatabaseService {
       )
     ''');
 
-    // 2. Bildetabellen (Bruker ditt foretrukne navn)
+    // 2. Images table (Uses your preferred name)
     await db.execute('''
       CREATE TABLE progress_images (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,13 +58,24 @@ class DatabaseService {
     ''');
   }
 
+  Future<void> close() async {
+    final db = _database;
+    if (db != null) {
+      await db.close(); // Ask the database to finish any pending operations and release the file
+      _database = null; // Set the database instance to null to allow for re-initialization
+    }
+  }
+
   // ==========================================
-  // KATEGORI-FUNKSJONER
+  // CATEGORY-FUNCTIONS
   // ==========================================
 
-  Future<List<Map<String, dynamic>>> getCategories() async {
+  Future<List<ProgressCategory>> getCategories() async {
     final db = await instance.database;
-    return await db.query('categories', orderBy: 'name ASC');
+    final maps = await db.query('categories');
+    
+    // Fetch all Maps from the database and convert them to ProgressCategory objects
+    return maps.map((map) => ProgressCategory.fromMap(map)).toList();
   }
 
   Future<void> insertCategory(String name, String reminderType, int day, int hour, int minute) async {
@@ -80,8 +93,6 @@ class DatabaseService {
     );
   }
 
-  // Endrer du navnet på en kategori her, vil ON UPDATE CASCADE 
-  // automatisk oppdatere navnet på alle bildene i progress_images!
   Future<void> updateCategory(String oldName, String newName, String reminderType, int day, int hour, int minute) async {
     final db = await instance.database;
     await db.update(
@@ -98,21 +109,20 @@ class DatabaseService {
     );
   }
 
-  // Sletter en kategori og fjerner automatisk alle fysiske bildefiler
+  // Deletes a category and all associated images from the database and the device storage
   Future<void> deleteCategory(String name) async {
     final db = await instance.database;
 
-    // 1. Vi må hente ut alle bilder i denne kategorien og slette bildefilene fra telefonen
+    // 1. Gets all images associated with the category and deletes them from storage
     final images = await getEntriesByCategory(name);
     for (var image in images) {
-      final file = File(image['image_path'] as String);
+      final file = File(image.imagePath);
       if (await file.exists()) {
         await file.delete();
       }
     }
 
-    // 2. Slett selve kategorien
-    // (ON DELETE CASCADE sørger for at dataradene i progress_images slettes automatisk)
+    // 2. Delete the category from the database
     await db.delete(
       'categories',
       where: 'name = ?',
@@ -121,7 +131,7 @@ class DatabaseService {
   }
 
   // ==========================================
-  // BILDE-FUNKSJONER
+  // IMAGE-FUNCTIONS
   // ==========================================
 
   Future<int> insertEntry(String imagePath, String category, DateTime dateTaken) async {
@@ -134,14 +144,31 @@ class DatabaseService {
     return await db.insert('progress_images', data);
   }
 
-  Future<List<Map<String, dynamic>>> getEntriesByCategory(String category) async {
+  Future<String> _getFullImagePath(String dbPath) async {
+   
+    if (isAbsolute(dbPath)) return dbPath;
+    
+    final directory = await getApplicationDocumentsDirectory();
+    return join(directory.path, dbPath);
+  }
+
+  Future<List<ProgressEntry>> getEntriesByCategory(String category) async {
     final db = await instance.database;
-    return await db.query(
+    final maps = await db.query(
       'progress_images',
       where: 'category = ?',
       whereArgs: [category],
       orderBy: 'date_taken DESC',
     );
+
+    // Resolves the image paths to full paths AND converts them to objects
+    List<ProgressEntry> resolvedEntries = [];
+    for (var map in maps) {
+      final mutableMap = Map<String, dynamic>.from(map);
+      mutableMap['image_path'] = await _getFullImagePath(map['image_path'] as String);
+      resolvedEntries.add(ProgressEntry.fromMap(mutableMap));
+    }
+    return resolvedEntries;
   }
 
   Future<String?> getLatestGhostOverlay(String category) async {
@@ -156,7 +183,8 @@ class DatabaseService {
     );
 
     if (result.isNotEmpty) {
-      return result.first['image_path'] as String;
+      // Returns the full path of the latest image for the given category
+      return await _getFullImagePath(result.first['image_path'] as String);
     }
     return null;
   }

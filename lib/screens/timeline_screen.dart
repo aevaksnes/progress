@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:progress/services/database_service.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:progress/models/category.dart'; 
+import 'package:progress/models/progress_entry.dart';
 
 import 'camera_screen.dart';
 import 'compare_screen.dart';
@@ -16,14 +18,15 @@ class TimelineScreen extends StatefulWidget {
 }
 
 class _TimelineScreenState extends State<TimelineScreen> {
-  List<String> _categories = [];
-  String? _selectedCategory;
-  List<Map<String, dynamic>> _entries = [];
+  // OPPDATERT: Bruker den nye, trygge klassen vår i stedet for String
+  List<ProgressCategory> _categories = [];
+  ProgressCategory? _selectedCategory;
+  
+  List<ProgressEntry> _entries = [];
   bool _isLoading = true;
 
-  // Ny state for mer generell "Selection Mode"
   bool _isSelectionMode = false;
-  final List<Map<String, dynamic>> _selectedEntries = [];
+  final List<ProgressEntry> _selectedEntries = [];
 
   @override
   void initState() {
@@ -32,19 +35,16 @@ class _TimelineScreenState extends State<TimelineScreen> {
   }
 
   Future<void> _loadInitialData() async {
-    // Henter kategoriene fra den nye databasen vår
-    final categoriesData = await DatabaseService.instance.getCategories();
-    
-    // Gjør om databaseresultatet til en enkel liste med tekst (navnene)
-    List<String> loadedCategories = categoriesData.map((cat) => cat['name'] as String).toList();
+
+    final loadedCategories = await DatabaseService.instance.getCategories();
 
     setState(() {
       _categories = loadedCategories;
       
-      // Hvis vi har kategorier, velg den første. Hvis databasen er tom, sett til null.
       if (_categories.isNotEmpty) {
-        // Beholder valgt kategori hvis den fortsatt finnes, ellers velg den første
-        if (!_categories.contains(_selectedCategory)) {
+        // Sjekker om kategorien vi hadde valgt fortsatt eksisterer (matcher på navn)
+        final stillExists = _categories.any((c) => c.name == _selectedCategory?.name);
+        if (!stillExists) {
           _selectedCategory = _categories.first;
         }
       } else {
@@ -62,14 +62,15 @@ class _TimelineScreenState extends State<TimelineScreen> {
       _isLoading = true;
     });
 
+    // Vi må sende inn navnet (String) til databasen, siden funksjonen der krever det
     final entries = await DatabaseService.instance.getEntriesByCategory(
-      _selectedCategory!,
+      _selectedCategory!.name,
     );
 
     setState(() {
       _entries = entries;
       _isLoading = false;
-      _cancelSelection(); // Nullstill hvis vi bytter kategori
+      _cancelSelection(); 
     });
   }
 
@@ -79,7 +80,8 @@ class _TimelineScreenState extends State<TimelineScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CameraScreen(category: _selectedCategory!),
+        // CameraScreen krever fortsatt bare en String, så vi sender navnet
+        builder: (context) => CameraScreen(category: _selectedCategory!.name),
       ),
     );
 
@@ -91,7 +93,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
-  // --- NY LOGIKK FOR SELECTION & DELETE ---
+  // --- SELECTION & DELETE LOGIKK FORBLIR UENDRET ---
 
   void _cancelSelection() {
     setState(() {
@@ -100,7 +102,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
     });
   }
 
-  void _onItemLongPress(Map<String, dynamic> entry) {
+  void _onItemLongPress(ProgressEntry entry) {
     if (!_isSelectionMode) {
       setState(() {
         _isSelectionMode = true;
@@ -109,12 +111,11 @@ class _TimelineScreenState extends State<TimelineScreen> {
     }
   }
 
-  void _onItemTap(Map<String, dynamic> entry) {
+  void _onItemTap(ProgressEntry entry) {
     if (_isSelectionMode) {
       setState(() {
         if (_selectedEntries.contains(entry)) {
           _selectedEntries.remove(entry);
-          // Gå ut av selection mode hvis vi fjerner markeringen på det siste bildet
           if (_selectedEntries.isEmpty) {
             _isSelectionMode = false;
           }
@@ -122,8 +123,6 @@ class _TimelineScreenState extends State<TimelineScreen> {
           _selectedEntries.add(entry);
         }
       });
-    } else {
-      // Her kan du i fremtiden legge til funksjonalitet for å åpne bildet i fullskjerm
     }
   }
 
@@ -152,8 +151,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
     if (confirm == true) {
       for (var entry in _selectedEntries) {
-        // Slett fra database (forutsetter at du la inn funksjonen fra forrige svar i DatabaseService)
-        await DatabaseService.instance.deleteProgressImage(entry['id'], entry['image_path']);
+        await DatabaseService.instance.deleteProgressImage(entry.id, entry.imagePath);
       }
       _cancelSelection();
       await _loadEntries();
@@ -165,7 +163,6 @@ class _TimelineScreenState extends State<TimelineScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        // Viser et kryss for å avbryte hvis vi er i selection mode
         leading: _isSelectionMode
             ? IconButton(
                 icon: const Icon(LucideIcons.x, color: Colors.white),
@@ -176,7 +173,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
           _isSelectionMode ? '${_selectedEntries.length} selected' : 'Timeline',
           style: const TextStyle(color: Colors.white),
         ),
-        backgroundColor: _isSelectionMode ? Colors.grey[900] : Colors.black, // Endrer farge for å markere modus
+        backgroundColor: _isSelectionMode ? Colors.grey[900] : Colors.black,
         elevation: 0,
         actions: [
           if (_isSelectionMode)
@@ -208,13 +205,14 @@ class _TimelineScreenState extends State<TimelineScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       itemCount: _categories.length,
                       itemBuilder: (context, index) {
+                        // OPPDATERT: Her jobber vi nå med objekter i stedet for ren tekst
                         final category = _categories[index];
-                        final isSelected = category == _selectedCategory;
+                        final isSelected = category.name == _selectedCategory?.name;
 
                         return Padding(
                           padding: const EdgeInsets.only(right: 8.0),
                           child: ChoiceChip(
-                            label: Text(category),
+                            label: Text(category.name), // Viser navnet fra objektet
                             selected: isSelected,
                             onSelected: (selected) {
                               if (selected) {
@@ -249,14 +247,14 @@ class _TimelineScreenState extends State<TimelineScreen> {
                           itemCount: _entries.length,
                           itemBuilder: (context, index) {
                             final entry = _entries[index];
-                            final imagePath = entry['image_path'] as String;
-                            final dateTaken = entry['date_taken'] as String;
+                            final imagePath = entry.imagePath;
+                            final dateTaken = entry.dateTaken;
 
                             final isSelected = _selectedEntries.contains(entry);
 
                             return GestureDetector(
-                              onLongPress: () => _onItemLongPress(entry), // Starter selection
-                              onTap: () => _onItemTap(entry),             // Velger/avvelger
+                              onLongPress: () => _onItemLongPress(entry), 
+                              onTap: () => _onItemTap(entry),             
                               child: Card(
                                 color: Colors.grey[900],
                                 margin: const EdgeInsets.only(bottom: 16.0),
@@ -277,6 +275,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
                                           height: 300,
                                           width: double.infinity,
                                           fit: BoxFit.cover,
+                                          cacheHeight: 900, 
                                         ),
                                         if (isSelected)
                                           Positioned.fill(
@@ -313,7 +312,6 @@ class _TimelineScreenState extends State<TimelineScreen> {
                 ),
               ],
             ),
-      // FAB håndterer nå om vi skal vise kamera eller compare-knapp
       floatingActionButton: _isSelectionMode
           ? (_selectedEntries.length == 2
               ? FloatingActionButton.extended(
@@ -329,12 +327,12 @@ class _TimelineScreenState extends State<TimelineScreen> {
                         ),
                       ),
                     );
-                    _cancelSelection(); // Rengjør når man forlater skjermen
+                    _cancelSelection(); 
                   },
                   icon: const Icon(LucideIcons.arrowLeftRight),
                   label: const Text('Compare'),
                 )
-              : null) // Skjuler FAB helt hvis vi er i selection mode, men ikke har nøyaktig 2 bilder
+              : null) 
           : FloatingActionButton(
               backgroundColor: Colors.white,
               foregroundColor: Colors.black,
