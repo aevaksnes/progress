@@ -145,11 +145,21 @@ class DatabaseService {
   }
 
   Future<String> _getFullImagePath(String dbPath) async {
-   
-    if (isAbsolute(dbPath)) return dbPath;
-    
     final directory = await getApplicationDocumentsDirectory();
-    return join(directory.path, dbPath);
+    
+    // 1. If the path is relative, we assume it's stored in the app's documents directory
+    if (!isAbsolute(dbPath)) {
+      return join(directory.path, dbPath);
+    }
+    
+    // 2. If the path is absolute AND the file actually exists there (same phone)
+    if (await File(dbPath).exists()) {
+      return dbPath;
+    }
+    
+    // If the path is absolute, but the file does not exist (new phone / different file structure).
+    // In this case, we simply extract the filename (e.g., "image1.jpg") and append it to the current directory!
+    return join(directory.path, basename(dbPath));
   }
 
   Future<List<ProgressEntry>> getEntriesByCategory(String category) async {

@@ -18,7 +18,7 @@ class TimelineScreen extends StatefulWidget {
 }
 
 class _TimelineScreenState extends State<TimelineScreen> {
-  // OPPDATERT: Bruker den nye, trygge klassen vår i stedet for String
+
   List<ProgressCategory> _categories = [];
   ProgressCategory? _selectedCategory;
   
@@ -42,7 +42,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
       _categories = loadedCategories;
       
       if (_categories.isNotEmpty) {
-        // Sjekker om kategorien vi hadde valgt fortsatt eksisterer (matcher på navn)
+        // Check if the previously selected category still exists in the updated list
         final stillExists = _categories.any((c) => c.name == _selectedCategory?.name);
         if (!stillExists) {
           _selectedCategory = _categories.first;
@@ -62,7 +62,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
       _isLoading = true;
     });
 
-    // Vi må sende inn navnet (String) til databasen, siden funksjonen der krever det
+
     final entries = await DatabaseService.instance.getEntriesByCategory(
       _selectedCategory!.name,
     );
@@ -80,7 +80,6 @@ class _TimelineScreenState extends State<TimelineScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        // CameraScreen krever fortsatt bare en String, så vi sender navnet
         builder: (context) => CameraScreen(category: _selectedCategory!.name),
       ),
     );
@@ -93,7 +92,8 @@ class _TimelineScreenState extends State<TimelineScreen> {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
-  // --- SELECTION & DELETE LOGIKK FORBLIR UENDRET ---
+  // --- SELECTION & DELETE ---
+  // Select images for deletion or comparison
 
   void _cancelSelection() {
     setState(() {
@@ -205,14 +205,14 @@ class _TimelineScreenState extends State<TimelineScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       itemCount: _categories.length,
                       itemBuilder: (context, index) {
-                        // OPPDATERT: Her jobber vi nå med objekter i stedet for ren tekst
+    
                         final category = _categories[index];
                         final isSelected = category.name == _selectedCategory?.name;
 
                         return Padding(
                           padding: const EdgeInsets.only(right: 8.0),
                           child: ChoiceChip(
-                            label: Text(category.name), // Viser navnet fra objektet
+                            label: Text(category.name), 
                             selected: isSelected,
                             onSelected: (selected) {
                               if (selected) {

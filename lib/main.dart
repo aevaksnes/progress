@@ -18,7 +18,7 @@ class ProgressApp extends StatefulWidget {
 
 class _ProgressAppState extends State<ProgressApp> with WidgetsBindingObserver {
   bool _isLocked = false;
-  DateTime? _pausedTime; // Give the user a grace period of 15 seconds before requiring re-authentication
+  DateTime? _pausedTime;
   final LocalAuthentication _localAuth = LocalAuthentication();
 
   @override
@@ -35,7 +35,6 @@ class _ProgressAppState extends State<ProgressApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-
     if (state == AppLifecycleState.paused) {
       _pausedTime = DateTime.now();
       
@@ -45,26 +44,21 @@ class _ProgressAppState extends State<ProgressApp> with WidgetsBindingObserver {
         });
       }
     } else if (state == AppLifecycleState.resumed) {
-
       if (_pausedTime != null) {
-
         final timeAway = DateTime.now().difference(_pausedTime!);
         
         if (timeAway < const Duration(seconds: 15)) {
-          
           setState(() {
             _isLocked = false;
           });
         } else {
-          
           if (_isLocked) _unlockApp();
         }
       } else if (_isLocked) {
-
         _unlockApp();
       }
       
-      _pausedTime = null; 
+      _pausedTime = null;
     }
   }
 
@@ -104,7 +98,7 @@ class _ProgressAppState extends State<ProgressApp> with WidgetsBindingObserver {
 
             if (_isLocked)
               Positioned.fill(
-                child: Container(
+                child: Material(
                   color: Colors.black, 
                   child: Center(
                     child: Column(
@@ -117,12 +111,10 @@ class _ProgressAppState extends State<ProgressApp> with WidgetsBindingObserver {
                           style: TextStyle(
                             color: Colors.white54, 
                             fontSize: 18, 
-                            decoration: TextDecoration.none, 
                             fontWeight: FontWeight.normal,
                           ),
                         ),
                         const SizedBox(height: 24),
-                        // FIKS 1.1: Knappen som redder deg hvis FaceID/Fingeravtrykk feiler!
                         ElevatedButton.icon(
                           onPressed: _unlockApp,
                           icon: const Icon(Icons.fingerprint),

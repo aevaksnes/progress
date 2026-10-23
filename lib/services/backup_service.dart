@@ -18,8 +18,8 @@ class BackupService {
       final db = await DatabaseService.instance.database;
       await db.rawQuery('PRAGMA wal_checkpoint(FULL);');
       
-      final docDir = await getApplicationDocumentsDirectory();
-      final zipFilePath = path.join(docDir.path, 'progress_backup.zip');
+      final tempDir = await getTemporaryDirectory(); 
+      final zipFilePath = path.join(tempDir.path, 'progress_backup.zip');
 
       // Starts an encoder to create a ZIP file, to not keep everything in RAM as it is being added
       final encoder = ZipFileEncoder();
@@ -35,7 +35,7 @@ class BackupService {
       }
 
       // 2. Add the images to the ZIP
-      final files = docDir.listSync();
+      final files = tempDir.listSync();
       for (var file in files) {
         if (file is File && file.path.toLowerCase().endsWith('.jpg')) {
           encoder.addFile(file, 'images/${path.basename(file.path)}');
@@ -70,7 +70,6 @@ class BackupService {
         if (!zipFilePath.toLowerCase().endsWith('.zip')) {
           throw Exception('Selected file is not a valid .zip backup.');
         }
-        // --------------------------------------
 
         final docDir = await getApplicationDocumentsDirectory();
         

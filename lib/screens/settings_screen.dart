@@ -3,7 +3,7 @@ import 'package:progress/services/backup_service.dart';
 import 'package:progress/services/database_service.dart';
 import 'package:progress/services/notification_service.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:progress/models/category.dart'; // Sikrer type safety
+import 'package:progress/models/category.dart'; 
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -34,7 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  // --- BACKUP OG IMPORT ---
+  // --- BACKUP AND IMPORT ---
 
   Future<void> _handleExport() async {
     setState(() => _isLoading = true);
@@ -89,16 +89,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // --- KATEGORI LOGIKK ---
+  // --- CATEGORY MANAGEMENT ---
 
-  // OPPDATERT: Kaller nå den nye, eksterne StatefulWidget-en vår!
   Future<void> _showCategoryDialog({ProgressCategory? existingCategory}) async {
     final didSave = await showDialog<bool>(
       context: context,
       builder: (context) => _CategoryDialog(existingCategory: existingCategory),
     );
 
-    // Hvis dialogen returnerte "true", betyr det at databasen ble oppdatert. Last listen på nytt!
+    // Database is updated, so we reload the settings to reflect changes
     if (didSave == true) {
       _loadSettings();
     }
@@ -287,7 +286,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
   @override
   void initState() {
     super.initState();
-    // Hent data fra eksisterende kategori (eller bruk standardverdier)
+    // Fetch existing category data if editing, otherwise set defaults
     final cat = widget.existingCategory;
     _nameController = TextEditingController(text: cat?.name ?? '');
     _reminderType = cat?.reminderType ?? 'none';
@@ -300,7 +299,6 @@ class _CategoryDialogState extends State<_CategoryDialog> {
 
   @override
   void dispose() {
-    // MAGIEN SKJER HER: Vi tømmer kontrolleren fra minnet når dialogen lukkes!
     _nameController.dispose();
     super.dispose();
   }
@@ -453,7 +451,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
             await NotificationService.instance.updateAllNotifications();
             
             if (context.mounted) {
-              Navigator.pop(context, true); // Returner true (data lagret!)
+              Navigator.pop(context, true); // Return true (data saved)
             }
           },
           child: const Text('Save', style: TextStyle(color: Colors.greenAccent)),

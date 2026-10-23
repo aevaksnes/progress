@@ -121,7 +121,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
     });
   }
 
-  // --- PICTURE TAKING WITH TIMER ---
+  // --- PICTURE WITH TIMER ---
 
   Future<void> _takePictureWithTimer() async {
     if (!_controller!.value.isInitialized || _isCountingDown) return;
