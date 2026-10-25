@@ -13,6 +13,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_local_notifications: ^22.3.1
+  image_picker: ^1.2.4
   local_auth: ^3.0.2
   lucide_icons_flutter: ^3.1.20
   path: ^1.9.1

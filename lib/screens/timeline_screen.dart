@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:progress/services/database_service.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:progress/models/category.dart'; 
+import 'package:progress/models/category.dart';
 import 'package:progress/models/progress_entry.dart';
 
 import 'camera_screen.dart';
@@ -18,10 +18,9 @@ class TimelineScreen extends StatefulWidget {
 }
 
 class _TimelineScreenState extends State<TimelineScreen> {
-
   List<ProgressCategory> _categories = [];
   ProgressCategory? _selectedCategory;
-  
+
   List<ProgressEntry> _entries = [];
   bool _isLoading = true;
 
@@ -35,15 +34,16 @@ class _TimelineScreenState extends State<TimelineScreen> {
   }
 
   Future<void> _loadInitialData() async {
-
     final loadedCategories = await DatabaseService.instance.getCategories();
 
     setState(() {
       _categories = loadedCategories;
-      
+
       if (_categories.isNotEmpty) {
         // Check if the previously selected category still exists in the updated list
-        final stillExists = _categories.any((c) => c.name == _selectedCategory?.name);
+        final stillExists = _categories.any(
+          (c) => c.name == _selectedCategory?.name,
+        );
         if (!stillExists) {
           _selectedCategory = _categories.first;
         }
@@ -62,7 +62,6 @@ class _TimelineScreenState extends State<TimelineScreen> {
       _isLoading = true;
     });
 
-
     final entries = await DatabaseService.instance.getEntriesByCategory(
       _selectedCategory!.name,
     );
@@ -70,7 +69,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
     setState(() {
       _entries = entries;
       _isLoading = false;
-      _cancelSelection(); 
+      _cancelSelection();
     });
   }
 
@@ -131,7 +130,10 @@ class _TimelineScreenState extends State<TimelineScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text('Delete Photos?', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Delete Photos?',
+          style: TextStyle(color: Colors.white),
+        ),
         content: Text(
           'Are you sure you want to delete ${_selectedEntries.length} photo(s)? This cannot be undone.',
           style: const TextStyle(color: Colors.grey),
@@ -143,7 +145,10 @@ class _TimelineScreenState extends State<TimelineScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.redAccent),
+            ),
           ),
         ],
       ),
@@ -151,7 +156,10 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
     if (confirm == true) {
       for (var entry in _selectedEntries) {
-        await DatabaseService.instance.deleteProgressImage(entry.id, entry.imagePath);
+        await DatabaseService.instance.deleteProgressImage(
+          entry.id,
+          entry.imagePath,
+        );
       }
       _cancelSelection();
       await _loadEntries();
@@ -186,9 +194,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
               icon: const Icon(LucideIcons.settings, color: Colors.white),
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const SettingsScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
               ).then((_) => _loadInitialData()),
             ),
         ],
@@ -205,14 +211,14 @@ class _TimelineScreenState extends State<TimelineScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       itemCount: _categories.length,
                       itemBuilder: (context, index) {
-    
                         final category = _categories[index];
-                        final isSelected = category.name == _selectedCategory?.name;
+                        final isSelected =
+                            category.name == _selectedCategory?.name;
 
                         return Padding(
                           padding: const EdgeInsets.only(right: 8.0),
                           child: ChoiceChip(
-                            label: Text(category.name), 
+                            label: Text(category.name),
                             selected: isSelected,
                             onSelected: (selected) {
                               if (selected) {
@@ -253,8 +259,8 @@ class _TimelineScreenState extends State<TimelineScreen> {
                             final isSelected = _selectedEntries.contains(entry);
 
                             return GestureDetector(
-                              onLongPress: () => _onItemLongPress(entry), 
-                              onTap: () => _onItemTap(entry),             
+                              onLongPress: () => _onItemLongPress(entry),
+                              onTap: () => _onItemTap(entry),
                               child: Card(
                                 color: Colors.grey[900],
                                 margin: const EdgeInsets.only(bottom: 16.0),
@@ -262,20 +268,50 @@ class _TimelineScreenState extends State<TimelineScreen> {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                   side: isSelected
-                                      ? const BorderSide(color: Colors.white, width: 3)
+                                      ? const BorderSide(
+                                          color: Colors.white,
+                                          width: 3,
+                                        )
                                       : BorderSide.none,
                                 ),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     Stack(
                                       children: [
-                                        Image.file(
-                                          File(imagePath),
-                                          height: 300,
-                                          width: double.infinity,
-                                          fit: BoxFit.cover,
-                                          cacheHeight: 900, 
+                                        ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                            minHeight: 200,
+                                            maxHeight: 500,
+                                          ),
+                                          child: Container(
+                                            color: Colors.black26,
+                                            alignment: Alignment.center,
+                                            child: Image.file(
+                                              File(imagePath),
+                                              width: double.infinity,
+                                              fit: BoxFit.contain,
+                                              cacheHeight: 1200,
+                                              errorBuilder:
+                                                  (
+                                                    context,
+                                                    error,
+                                                    stackTrace,
+                                                  ) => const Center(
+                                                    child: Padding(
+                                                      padding: EdgeInsets.all(
+                                                        32.0,
+                                                      ),
+                                                      child: Icon(
+                                                        LucideIcons.imageOff,
+                                                        color: Colors.grey,
+                                                        size: 48,
+                                                      ),
+                                                    ),
+                                                  ),
+                                            ),
+                                          ),
                                         ),
                                         if (isSelected)
                                           Positioned.fill(
@@ -314,25 +350,25 @@ class _TimelineScreenState extends State<TimelineScreen> {
             ),
       floatingActionButton: _isSelectionMode
           ? (_selectedEntries.length == 2
-              ? FloatingActionButton.extended(
-                  backgroundColor: Colors.greenAccent,
-                  foregroundColor: Colors.black,
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CompareScreen(
-                          entry1: _selectedEntries[0],
-                          entry2: _selectedEntries[1],
+                ? FloatingActionButton.extended(
+                    backgroundColor: Colors.greenAccent,
+                    foregroundColor: Colors.black,
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CompareScreen(
+                            entry1: _selectedEntries[0],
+                            entry2: _selectedEntries[1],
+                          ),
                         ),
-                      ),
-                    );
-                    _cancelSelection(); 
-                  },
-                  icon: const Icon(LucideIcons.arrowLeftRight),
-                  label: const Text('Compare'),
-                )
-              : null) 
+                      );
+                      _cancelSelection();
+                    },
+                    icon: const Icon(LucideIcons.arrowLeftRight),
+                    label: const Text('Compare'),
+                  )
+                : null)
           : FloatingActionButton(
               backgroundColor: Colors.white,
               foregroundColor: Colors.black,
