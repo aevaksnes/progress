@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:progress/screens/auth_screen.dart'; 
-import 'package:progress/services/notification_service.dart'; 
+import 'package:progress/screens/timeline_screen.dart';
+import 'package:progress/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService.instance.init(); 
+  await NotificationService.instance.init();
   runApp(const ProgressApp());
 }
 
@@ -17,7 +17,7 @@ class ProgressApp extends StatefulWidget {
 }
 
 class _ProgressAppState extends State<ProgressApp> with WidgetsBindingObserver {
-  bool _isLocked = false;
+  bool _isLocked = true;
   DateTime? _pausedTime;
   final LocalAuthentication _localAuth = LocalAuthentication();
 
@@ -25,6 +25,9 @@ class _ProgressAppState extends State<ProgressApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Authenticate the user when the app starts
+    _unlockApp();
   }
 
   @override
@@ -37,7 +40,7 @@ class _ProgressAppState extends State<ProgressApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       _pausedTime = DateTime.now();
-      
+
       if (!_isLocked) {
         setState(() {
           _isLocked = true;
@@ -46,7 +49,7 @@ class _ProgressAppState extends State<ProgressApp> with WidgetsBindingObserver {
     } else if (state == AppLifecycleState.resumed) {
       if (_pausedTime != null) {
         final timeAway = DateTime.now().difference(_pausedTime!);
-        
+
         if (timeAway < const Duration(seconds: 15)) {
           setState(() {
             _isLocked = false;
@@ -57,7 +60,7 @@ class _ProgressAppState extends State<ProgressApp> with WidgetsBindingObserver {
       } else if (_isLocked) {
         _unlockApp();
       }
-      
+
       _pausedTime = null;
     }
   }
@@ -66,14 +69,14 @@ class _ProgressAppState extends State<ProgressApp> with WidgetsBindingObserver {
     try {
       final didAuthenticate = await _localAuth.authenticate(
         localizedReason: 'Unlock to view your progress',
-        biometricOnly: false, 
-        persistAcrossBackgrounding: true, 
+        biometricOnly: false,
+        persistAcrossBackgrounding: true,
         sensitiveTransaction: true,
       );
 
       if (didAuthenticate && mounted) {
         setState(() {
-          _isLocked = false; 
+          _isLocked = false;
         });
       }
     } catch (e) {
@@ -99,18 +102,22 @@ class _ProgressAppState extends State<ProgressApp> with WidgetsBindingObserver {
             if (_isLocked)
               Positioned.fill(
                 child: Material(
-                  color: Colors.black, 
+                  color: Colors.black,
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.lock_outline, size: 80, color: Colors.white54),
+                        const Icon(
+                          Icons.lock_outline,
+                          size: 80,
+                          color: Colors.white54,
+                        ),
                         const SizedBox(height: 16),
                         const Text(
                           'Locked',
                           style: TextStyle(
-                            color: Colors.white54, 
-                            fontSize: 18, 
+                            color: Colors.white54,
+                            fontSize: 18,
                             fontWeight: FontWeight.normal,
                           ),
                         ),
@@ -132,7 +139,7 @@ class _ProgressAppState extends State<ProgressApp> with WidgetsBindingObserver {
           ],
         );
       },
-      home: const AuthScreen(), 
+      home: const TimelineScreen(),
     );
   }
 }

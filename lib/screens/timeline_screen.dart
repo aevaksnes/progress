@@ -9,6 +9,7 @@ import 'package:progress/models/progress_entry.dart';
 import 'camera_screen.dart';
 import 'compare_screen.dart';
 import 'settings_screen.dart';
+import 'full_screen_image_screen.dart';
 
 class TimelineScreen extends StatefulWidget {
   const TimelineScreen({super.key});
@@ -56,7 +57,12 @@ class _TimelineScreenState extends State<TimelineScreen> {
   }
 
   Future<void> _loadEntries() async {
-    if (_selectedCategory == null) return;
+    if (_selectedCategory == null) {
+      setState(() {
+        _isLoading = false; 
+      });
+      return;
+    }
 
     setState(() {
       _isLoading = true;
@@ -122,6 +128,16 @@ class _TimelineScreenState extends State<TimelineScreen> {
           _selectedEntries.add(entry);
         }
       });
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => FullScreenImageScreen(
+            imagePath: entry.imagePath,
+            dateTaken: entry.dateTaken,
+          ),
+        ),
+      );
     }
   }
 
@@ -240,14 +256,22 @@ class _TimelineScreenState extends State<TimelineScreen> {
                     ),
                   ),
                 Expanded(
-                  child: _entries.isEmpty
+                  child: _categories.isEmpty 
                       ? const Center(
                           child: Text(
-                            'No entries yet.\nTap the camera button to start!',
+                            'Welcome to Progress!\nTap the gear icon to create your first category.',
                             textAlign: TextAlign.center,
                             style: TextStyle(color: Colors.grey, fontSize: 16),
                           ),
                         )
+                      : _entries.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No entries yet.\nTap the camera button to start!',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.grey, fontSize: 16),
+                              ),
+                            )
                       : ListView.builder(
                           padding: const EdgeInsets.all(16.0),
                           itemCount: _entries.length,
@@ -354,12 +378,15 @@ class _TimelineScreenState extends State<TimelineScreen> {
                     backgroundColor: Colors.greenAccent,
                     foregroundColor: Colors.black,
                     onPressed: () {
+                      final firstImage = _selectedEntries[0];
+                      final secondImage = _selectedEntries[1];
+
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => CompareScreen(
-                            entry1: _selectedEntries[0],
-                            entry2: _selectedEntries[1],
+                            entry1: firstImage,
+                            entry2: secondImage,
                           ),
                         ),
                       );
